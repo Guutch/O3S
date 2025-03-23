@@ -54,4 +54,20 @@ router.post('/add', async (req, res) => {
     }
 });
 
+// POST /api/instagram/send-message
+router.post('/send-message', async (req, res) => {
+    try {
+      const { userId, recipientUsername, messageText } = req.body;
+      console.log("Send message request received:", { userId, recipientUsername, messageText });
+      if (!userId || !recipientUsername || !messageText) {
+        return res.status(400).json({ error: "Missing required fields." });
+      }
+      await sendInstagramMessage(userId, recipientUsername, messageText);
+      res.json({ success: true, message: "Message sent successfully." });
+    } catch (error) {
+      console.error("Error sending Instagram message:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
 module.exports = router;
