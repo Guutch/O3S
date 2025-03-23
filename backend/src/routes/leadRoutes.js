@@ -2,6 +2,8 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 const Lead = require('../models/Lead');
+const { sendEmail } = require('../services/googleService'); // adjust the path as needed
+
 
 // can prolly delete this
 const SECRET = 'your_static_secret_key';
@@ -95,5 +97,41 @@ router.delete('/:id', authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to delete lead' });
     }
 });
+
+router.post('/email-test', async (req, res) => {
+    try {
+      const { leadId, senderEmail, subject, body } = req.body;
+      console.log("Email test request received:", { leadId, senderEmail, subject, body });
+      
+      if (!leadId || !senderEmail || !subject || !body) {
+        return res.status(400).json({ error: "leadId, senderEmail, subject, and body are required." });
+      }
+  
+      // Fetch the lead from the database.
+      const lead = await Lead.findByPk(leadId);
+      if (!lead) {
+        console.log("Lead not found for leadId:", leadId);
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      console.log("Found lead:", lead);
+  
+      // Use the lead's email as recipient
+      const recipientEmail = lead.email;
+      console.log("Sending email with details:", { senderEmail, recipientEmail, subject, body });
+  
+      // Call the email sending function.
+      const result = await sendEmail(senderEmail, recipientEmail, subject, body);
+      console.log("Result from sendEmail:", result);
+  
+      if (result.success) {
+        return res.json({ success: true, message: result.message });
+      } else {
+        return res.status(500).json({ success: false, message: result.message });
+      }
+    } catch (error) {
+      console.error("Error in email-test route:", error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
 
 module.exports = router;

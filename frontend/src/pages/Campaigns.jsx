@@ -10,6 +10,9 @@ function Campaigns() {
   const [campaignName, setCampaignName] = useState("");
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [activeTab, setActiveTab] = useState("Analytics");
+  const [campaignLeads, setCampaignLeads] = useState([]);
+
+  const [showLeadsPopup, setShowLeadsPopup] = useState(null);
 
   useEffect(() => {
     const fetchCampaigns = async () => {
@@ -33,7 +36,102 @@ function Campaigns() {
     };
     fetchCampaigns();
   }, []);
+
+  // Fetch campaign leads for the selected campaign
+  useEffect(() => {
+    if (selectedCampaign) {
+      const fetchCampaignLeads = async () => {
+        const token = localStorage.getItem("token");
+        console.log("Fetching campaign leads for campaign ID:", selectedCampaign.id);
+        console.log("Token:", token);
+        try {
+          const res = await fetch(`http://localhost:5000/api/campaign-leads/${selectedCampaign.id}`, {
+            headers: {
+              "Content-Type": "application/json",
+              ...(token && { Authorization: `Bearer ${token}` }),
+            },
+          });
+          console.log("Response status:", res.status);
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error("Response error text:", errorText);
+            throw new Error(`Failed to fetch campaign leads (status: ${res.status})`);
+          }
+          const data = await res.json();
+          console.log("Fetched campaign leads:", data);
+        } catch (error) {
+          console.error("Error fetching campaign leads:", error);
+        }
+      };
+      fetchCampaignLeads();
+    }
+  }, [selectedCampaign]);
   
+  // Dummy button to send an email test to the lead.
+  const handleEmailTest = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const payload = {
+        leadId: 1, // Dummy lead id for testing
+        senderEmail: "simonhutch1611@gmail.com",  // Replace with a real sender email from your DB
+        subject: "Test Email Subject",
+        body: "This is a test email body sent from the Email Test button."
+      };
+
+      const response = await fetch("http://localhost:5000/api/leads/email-test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to send test email");
+      }
+      const data = await response.json();
+      console.log("Email test result:", data);
+      alert("Email sent: " + data.message);
+    } catch (error) {
+      console.error("Error sending email test:", error);
+      alert(error.message);
+    }
+  };
+  
+  // Step 1: When the test button is pressed, add lead (dummy lead id: 1) to the selected campaign's CampaignLeads.
+  const handleTestButton = async () => {
+    if (!selectedCampaign) {
+      console.error("No campaign selected");
+      return;
+    }
+    const payload = {
+      campaign_id: selectedCampaign.id,
+      lead_id: 1, // For testing, we use lead with id 1
+    };
+
+    console.log(payload)
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("http://localhost:5000/api/campaign-leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to add lead to campaign");
+      }
+      const data = await response.json();
+      console.log("Campaign lead added:", data);
+      // You can update local state if needed here
+    } catch (error) {
+      console.error("Error adding lead to campaign:", error);
+    }
+  };
   
   // Popup handlers
   const handleAddNew = () => setShowPopup(true);
@@ -138,6 +236,18 @@ function Campaigns() {
             <button className="bg-blue-500 text-white px-4 py-2 rounded-md">
               Add Leads
             </button>
+            <button 
+            className="bg-blue-500 text-white px-4 py-2 rounded-md mt-4" 
+            onClick={handleTestButton}
+          >
+            Test fs
+          </button>
+          <button 
+          className="bg-green-500 text-white px-4 py-2 rounded-md"
+          onClick={handleEmailTest}
+        >
+          Send Email Test
+        </button>
           </div>
         )}
         {activeTab === "Sequences" && (
