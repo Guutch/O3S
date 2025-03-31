@@ -1,4 +1,4 @@
-// ROUND 3 //'use strict';
+// index.js
 const fs = require('fs');
 const path = require('path');
 const Sequelize = require('sequelize');
@@ -18,7 +18,7 @@ const sequelize = new Sequelize(
 );
 console.log("✅ Sequelize initialized.");
 
-// Explicitly import models
+// Import models
 const SendingAccount = require('../src/models/SendingAccs');
 const User = require('../src/models/User');
 const Campaign = require('../src/models/Campaign');
@@ -27,54 +27,51 @@ const Sequence = require('../src/models/Sequence');
 const MessageLog = require('../src/models/MessageLog');
 const ActivityLog = require('../src/models/ActivityLogs');
 const InstagramAccount = require('../src/models/InstagramAccount');
-const CampaignLead = require('../src/models/CampaignLead'); // ✅ ADD THIS LINE
-const CampaignSchedule = require('../src/models/CampaignSchedule'); // ✅ ADD THIS LINE
-const CampaignSequence = require('../src/models/CampaignSequence'); // ✅ ADD THIS LINE
+const CampaignLead = require('../src/models/CampaignLead');
+const CampaignSchedule = require('../src/models/CampaignSchedule');
+const CampaignSequence = require('../src/models/CampaignSequence');
 
-// List all models
+// Gather models in an object
 const models = {
-    SendingAccount,
-    User,
-    Campaign,
-    Lead,
-    Sequence,
-    MessageLog,
-    ActivityLog,
-    InstagramAccount,
-    CampaignLead, // ✅ ADD THIS TO THE MODELS LIST
-    CampaignSchedule,
-    CampaignSequence
+  SendingAccount,
+  User,
+  Campaign,
+  Lead,
+  Sequence,
+  MessageLog,
+  ActivityLog,
+  InstagramAccount,
+  CampaignLead,
+  CampaignSchedule,
+  CampaignSequence,
 };
 
-// **Initialize each model properly**
+// Initialize each model and store in db
 Object.keys(models).forEach((modelName) => {
-    if (models[modelName].init) {
-        // console.log(🔍 Initializing model: ${modelName});
-        models[modelName].init(sequelize, Sequelize);
-    }
-    db[modelName] = models[modelName];
+  if (typeof models[modelName].init === "function") {
+    models[modelName].init(sequelize, Sequelize);
+  }
+  db[modelName] = models[modelName];
 });
-// InstagramAccount.init(sequelize);
 
-console.log("✅ All models initialized.");
-
-// **Associate models if needed**
+// Run associations if defined
 Object.keys(models).forEach((modelName) => {
-    if (models[modelName].init) {
-    //   console.log(🔍 Initializing model: ${modelName});
-      models[modelName].init(sequelize, Sequelize.DataTypes);
-    }
-    db[modelName] = models[modelName];
-  });
+  if (typeof models[modelName].associate === "function") {
+    models[modelName].associate(db);
+  }
+});
 
 // Sync database (optional)
 sequelize
-    .sync()
-    .then(() => console.log("✅ Database synced successfully"))
-    .catch((err) => console.error("❌ Database sync error:", err));
+  .sync()
+  .then(() => console.log("✅ Database synced successfully"))
+  .catch((err) => console.error("❌ Database sync error:", err));
 
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
+// Map MessageLog to MessageLogs so that db.MessageLogs is defined.
+db.MessageLogs = db.MessageLog;
+
 console.log("✅ Models exported.");
-module.exports = {db, InstagramAccount, SendingAccount: db.SendingAccount};
+module.exports = db;

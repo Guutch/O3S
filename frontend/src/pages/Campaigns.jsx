@@ -36,6 +36,7 @@ function Campaigns() {
   const [fromTime, setFromTime] = useState("09:00");
   const [toTime, setToTime] = useState("18:00");
   const [timezone, setTimezone] = useState("Pacific/Midway");
+  const userId = localStorage.getItem("userId");
   const [days, setDays] = useState({
     Monday: false,
     Tuesday: false,
@@ -87,42 +88,57 @@ function Campaigns() {
     }
   };
 
-  const handleClick = async () => {
-    const token = localStorage.getItem("token");
-    const newStatus = isCampaignPaused ? true : false;
-  
-    try {
-      const response = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ is_active: newStatus }),
-      });
-  
-      if (!response.ok) {
-        throw new Error("Failed to update campaign status");
-      }
-  
-      const updatedCampaign = await response.json();
-      console.log("Campaign updated:", updatedCampaign);
-      setIsCampaignPaused(!isCampaignPaused);
-  
-      setCampaigns((prev) =>
-        prev.map((c) =>
-          c.id === selectedCampaign.id
-            ? { ...c, is_active: updatedCampaign.is_active }
-            : c
-        )
-      );
-      
-    } catch (error) {
-      console.error(error);
-      alert(error.message);
+// In your resume campaign button component
+const handleClick = async () => {
+  const token = localStorage.getItem("token");
+  const userId = localStorage.getItem("userId"); // Get the user's ID from localStorage
+  const newStatus = isCampaignPaused ? true : false;
+
+  try {
+    // Update the campaign status
+    const response = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ is_active: newStatus }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update campaign status");
     }
-  };
-  
+    const updatedCampaign = await response.json();
+    console.log("Campaign updated:", updatedCampaign);
+    setIsCampaignPaused(!isCampaignPaused);
+    setCampaigns((prev) =>
+      prev.map((c) =>
+        c.id === selectedCampaign.id
+          ? { ...c, is_active: updatedCampaign.is_active }
+          : c
+      )
+    );
+    
+    // Pass the user's ID in the body when resuming the campaign
+    const resumeResponse = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}/resume`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ userId }),
+    });
+    const resumeData = await resumeResponse.json();
+    console.log("Campaign resumed:", resumeData);
+    alert("Campaign resumed. Check console for details.");
+  } catch (error) {
+    console.error(error);
+    alert(error.message);
+  }
+};
+
+
+
 
 
   const handleAddSchedule = () => {

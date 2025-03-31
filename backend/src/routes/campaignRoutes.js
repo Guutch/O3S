@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const Campaign = require('../models/Campaign');
 const User = require('../models/User');
+const { processCampaignForCampaignId } = require('../services/campaignProcessor');
 
 // Middleware to verify JWT
 const authenticate = async (req, res, next) => {
@@ -123,5 +124,25 @@ router.get('/:campaignId', async (req, res) => {
       res.status(500).json({ success: false, message: error.message });
     }
   });
+
+// POST /api/campaigns/:id/resume
+router.post('/:id/resume', authenticate, async (req, res) => {
+  try {
+    const campaign = await Campaign.findOne({ where: { id: req.params.id, user_id: req.user.id } });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    
+    // Extract userId from the request body (or you can use req.user.id directly)
+    const { userId } = req.body;
+    // Process this campaign using our defined function, passing the userId
+    const result = await processCampaignForCampaignId(campaign.id, userId);
+    
+    res.json(result);
+  } catch (err) {
+    console.error("Error resuming campaign:", err);
+    res.status(500).json({ error: 'Failed to resume campaign processing' });
+  }
+});
+
+
 
 module.exports = router;
