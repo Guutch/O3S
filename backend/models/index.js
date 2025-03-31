@@ -28,6 +28,8 @@ const MessageLog = require('../src/models/MessageLog');
 const ActivityLog = require('../src/models/ActivityLogs');
 const InstagramAccount = require('../src/models/InstagramAccount');
 const CampaignLead = require('../src/models/CampaignLead'); // ✅ ADD THIS LINE
+const CampaignSchedule = require('../src/models/CampaignSchedule'); // ✅ ADD THIS LINE
+const CampaignSequence = require('../src/models/CampaignSequence'); // ✅ ADD THIS LINE
 
 // List all models
 const models = {
@@ -40,6 +42,8 @@ const models = {
     ActivityLog,
     InstagramAccount,
     CampaignLead, // ✅ ADD THIS TO THE MODELS LIST
+    CampaignSchedule,
+    CampaignSequence
 };
 
 // **Initialize each model properly**
