@@ -14,8 +14,11 @@ const emailRoutes = require('./src/routes/emailRoutes');
 const instagramRoutes = require('./src/routes/instagramRoutes'); // Added Instagram API
 const authRoutes = require('./src/routes/authRoutes'); // Added Instagram API
 const campaignLeadRoutes = require('./src/routes/campaignLeadRoutes');
-
+const sheetsRoutes = require('./src/routes/sheetsRoutes');
 const { processCampaigns } = require('./src/services/campaignProcessor');
+const instagramAccountsRoutes = require('./src/routes/instagramAccountsRoutes');
+const campaignScheduleRoutes = require('./src/routes/campaignScheduleRoutes');
+const campaignSequenceRoutes = require('./src/routes/campaignSequenceRoutes');
 
 // ✅ Load .env file from the root directory
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -43,7 +46,10 @@ app.use('/api/email', emailRoutes);
 app.use('/api/instagram', instagramRoutes); // New Instagram Routes
 app.use("/api/auth", authRoutes);
 app.use('/api/campaign-leads', campaignLeadRoutes);
-
+app.use('/api/sheets', sheetsRoutes);
+app.use('/api/instagramAccounts', instagramAccountsRoutes);
+app.use('/api/campaigns/schedules', campaignScheduleRoutes);
+app.use('/api/campaigns/sequences', campaignSequenceRoutes);
 
 // Database Connection
 db.authenticate()

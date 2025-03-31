@@ -108,4 +108,20 @@ router.delete('/:id', authenticate, async (req, res) => {
     }
 });
 
+// GET /api/campaign-leads/:campaignId
+router.get('/:campaignId', async (req, res) => {
+    try {
+      const { campaignId } = req.params;
+      // Assuming you have set up associations between CampaignLead and Lead
+      const campaignLeads = await CampaignLead.findAll({
+        where: { campaign_id: campaignId },
+        include: [{ model: Lead }] // This assumes that you've defined the association
+      });
+      res.json({ success: true, campaignLeads });
+    } catch (error) {
+      console.error("Error fetching campaign leads:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
 module.exports = router;

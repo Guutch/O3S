@@ -3,7 +3,8 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const Lead = require('../models/Lead');
 const { sendEmail } = require('../services/googleService'); // adjust the path as needed
-
+const { readSheetData } = require('../services/sheetsService'); // Reads sheet data
+const CampaignLeads = require('../models/CampaignLead');
 
 // can prolly delete this
 const SECRET = 'your_static_secret_key';
@@ -131,6 +132,95 @@ router.post('/email-test', async (req, res) => {
     } catch (error) {
       console.error("Error in email-test route:", error);
       return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // POST /api/leads/import-sheets/:campaignId
+  router.post('/import-sheets/:campaignId', async (req, res) => {
+    try {
+      const { campaignId } = req.params;
+      // Fetch the raw data from Google Sheets
+      const values = await readSheetData();
+      console.log("Raw sheet values:", values);
+      if (!values || values.length < 2) {
+        return res.status(400).json({ success: false, message: "No data found in sheet" });
+      }
+      
+      // Normalize the first row (headers)
+      const headers = values[0].map(header =>
+        header.trim().toLowerCase().replace(/\s/g, '_')
+      );
+      console.log("Normalized headers:", headers);
+  
+      // Define required headers that match your Leads schema:
+      // Our Leads table uses: first_name, last_name, email, ig_username
+      const requiredHeaders = ['first_name', 'last_name', 'email', 'ig_username'];
+      for (const header of requiredHeaders) {
+        if (!headers.includes(header)) {
+          return res.status(400).json({
+            success: false,
+            message: `Missing required column: ${header}`
+          });
+        }
+      }
+  
+      const rows = values.slice(1);
+      let importedCount = 0;
+      let associatedCount = 0;
+  
+      for (const row of rows) {
+        // Map each row to an object using headers:
+        const leadData = {};
+        headers.forEach((header, index) => {
+          leadData[header] = row[index];
+        });
+  
+        // Validate required fields
+        if (!leadData.first_name || !leadData.last_name || !leadData.email || !leadData.ig_username) {
+          console.log("Skipping row, missing required fields:", leadData);
+          continue;
+        }
+  
+        // Check if a lead with the same email already exists
+        let lead = await Lead.findOne({ where: { email: leadData.email } });
+        if (!lead) {
+          // Create a new lead record
+          lead = await Lead.create({
+            // If you have user authentication, use req.user.id. Otherwise, default to 1.
+            user_id: req.user ? req.user.id : 1,
+            first_name: leadData.first_name,
+            last_name: leadData.last_name,
+            email: leadData.email,
+            ig_username: leadData.ig_username,
+            lead_status: 'new'
+          });
+          importedCount++;
+        }
+  
+        // Create an association in CampaignLeads if one doesn't exist
+        const existingAssociation = await CampaignLeads.findOne({
+          where: { campaign_id: campaignId, lead_id: lead.id }
+        });
+        if (!existingAssociation) {
+          await CampaignLeads.create({ campaign_id: campaignId, lead_id: lead.id });
+          associatedCount++;
+        }
+      }
+
+      // After processing, fetch all campaign leads for this campaign including lead details
+    // const campaignLeads = await CampaignLeads.findAll({
+    //     where: { campaign_id: campaignId },
+    //     include: [{ model: Lead }]
+    //   });
+  
+      res.json({
+        success: true,
+        message: `Imported ${importedCount} new leads and associated ${associatedCount} leads with campaign ${campaignId}.`,
+        campaignLeads: values
+      });
+    } catch (error) {
+      console.error("Error importing leads from sheets:", error);
+      res.status(500).json({ success: false, message: error.message });
     }
   });
 
