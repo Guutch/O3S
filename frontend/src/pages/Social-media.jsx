@@ -131,6 +131,8 @@ function SocialMedia() {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-lg font-semibold text-black">Social Media Accounts</h1>
       </div>
+      <hr className="border-t border-gray-300 mb-5" />
+
 
       {/* Controls */}
       <div className="flex justify-between items-center mb-4">

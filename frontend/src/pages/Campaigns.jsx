@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { FiSearch } from "react-icons/fi";
 import { HiLightningBolt } from "react-icons/hi";
 import { IoMdArrowDropdown } from "react-icons/io";
-import { FaPlus, FaBold, FaItalic, FaPause, FaChevronLeft, FaEllipsisH, FaLink, FaRegImage, FaInstagram, FaEnvelope, FaPlay } from "react-icons/fa";
+import { FaPlus, FaBold, FaItalic, FaPause, FaChevronLeft, FaEllipsisH, FaLink, FaRegImage, FaInstagram, FaEnvelope, FaPlay, FaCode } from "react-icons/fa";
 
 function Campaigns() {
   const [campaigns, setCampaigns] = useState([]);
@@ -37,6 +37,12 @@ function Campaigns() {
   const [toTime, setToTime] = useState("18:00");
   const [timezone, setTimezone] = useState("Pacific/Midway");
   const userId = localStorage.getItem("userId");
+  const [messageLogs, setMessageLogs] = useState([]);
+  const [totalSent, setTotalSent] = useState(0);
+  const [subject, setSubject] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [selectedStepIndex, setSelectedStepIndex] = useState(null);
+  const [selectedStep, setSelectedStep] = useState(null);
   const [days, setDays] = useState({
     Monday: false,
     Tuesday: false,
@@ -48,13 +54,52 @@ function Campaigns() {
   });
 
   const addStep = () => {
-    setSteps([...steps, steps.length + 1]);
+    const newStep = {
+      id: null,
+      platform: "email",
+      subject: "",
+      messageBody: "",
+      delay: 0,
+    };
+    setSteps([...steps, newStep + 1]);
+    setSelectedStepIndex(steps.length); // auto-select the newly added step
   };
 
   // Toggle a day checkbox
   const handleDayToggle = (day) => {
     setDays((prev) => ({ ...prev, [day]: !prev[day] }));
   };
+
+  const handleSave = async () => {
+
+    console.log("LOLOLOLOL", selectedCampaign.id)
+    // Assuming you have these values from state or props:
+    // campaignId, stepNumber, platform, subject, messageBody, delay
+    const payload = {
+      campaign_id: selectedCampaign.id,         // e.g., selected campaign ID
+      step_number: 1,         // e.g., 1, 2, etc.
+      platform: selectedPlatform,              // "email" or "instagram"
+      subject: subject,                // e.g., "Welcome!" for email sequences
+      message_body: messageBody,       // e.g., "Hello {{first_name}}, welcome to our service!"
+      delay: 0,                    // delay in minutes
+    };
+
+    console.log("Saving sequence:", payload);
+
+    try {
+      const response = await fetch("http://localhost:5000/api/campaigns/sequences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      console.log("Sequence saved:", data);
+      // Optionally update UI state or show a success message
+    } catch (error) {
+      console.error("Error saving sequence:", error);
+    }
+  };
+
 
   // Save schedule to backend
   const handleSaveSchedule = async () => {
@@ -91,53 +136,67 @@ function Campaigns() {
 // In your resume campaign button component
 const handleClick = async () => {
   const token = localStorage.getItem("token");
-  const userId = localStorage.getItem("userId"); // Get the user's ID from localStorage
-  const newStatus = isCampaignPaused ? true : false;
+  const userId = localStorage.getItem("userId");
 
-  try {
-    // Update the campaign status
-    const response = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({ is_active: newStatus }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to update campaign status");
+  if (isCampaignPaused) {
+    // Campaign is paused: resume it.
+    try {
+      // Update campaign status to active (true)
+      const response = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_active: true }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update campaign status");
+      }
+      const updatedCampaign = await response.json();
+      console.log("Campaign updated (resumed):", updatedCampaign);
+      setIsCampaignPaused(false); // Now active
+      
+      // Trigger resume endpoint to start sending messages.
+      const resumeResponse = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}/resume`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+      const resumeData = await resumeResponse.json();
+      console.log("Campaign resumed:", resumeData);
+      alert("Campaign resumed. Check console for details.");
+    } catch (error) {
+      console.error(error);
+      alert(error.message);
     }
-    const updatedCampaign = await response.json();
-    console.log("Campaign updated:", updatedCampaign);
-    setIsCampaignPaused(!isCampaignPaused);
-    setCampaigns((prev) =>
-      prev.map((c) =>
-        c.id === selectedCampaign.id
-          ? { ...c, is_active: updatedCampaign.is_active }
-          : c
-      )
-    );
-    
-    // Pass the user's ID in the body when resuming the campaign
-    const resumeResponse = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}/resume`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({ userId }),
-    });
-    const resumeData = await resumeResponse.json();
-    console.log("Campaign resumed:", resumeData);
-    alert("Campaign resumed. Check console for details.");
-  } catch (error) {
-    console.error(error);
-    alert(error.message);
+  } else {
+    // Campaign is active: pause it.
+    try {
+      const response = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_active: false }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update campaign status");
+      }
+      const updatedCampaign = await response.json();
+      console.log("Campaign updated (paused):", updatedCampaign);
+      setIsCampaignPaused(true);
+      alert("Campaign paused.");
+    } catch (error) {
+      console.error(error);
+      alert(error.message);
+    }
   }
 };
-
-
 
 
 
@@ -169,13 +228,21 @@ const handleClick = async () => {
 
   const handleAddStep = () => {
     if (currentContent.trim() !== "") {
+      // Filter out steps for the current platform
+      const platformSteps = sequences.filter((step) => step.platform === currentPlatform);
+      // New step's display index is count of steps for that platform + 1 (starts at 1)
+      const newStepNumber = platformSteps.length + 1;
+
       const newStep = {
-        step: sequences.length + 1,
+        step: newStepNumber,
         platform: currentPlatform,
         content: currentContent,
+        // Add additional fields if needed (subject, delay, etc.)
       };
-      setSequences([newStep, ...sequences]);
-      // Reset editable card
+
+      // Append the new step to sequences
+      setSequences([...sequences, newStep]);
+      // Reset editable fields
       setCurrentContent("");
       setCurrentPlatform("email");
     }
@@ -225,6 +292,13 @@ const handleClick = async () => {
       fetchLeads();
     }
   }, [selectedCampaign]);
+
+  useEffect(() => {
+    // If there's only one step, auto-select it.
+    if (steps.length === 1) {
+      setSelectedStep(0);
+    }
+  }, [steps]);
 
   useEffect(() => {
     // Transform the leads array into an array of objects, skipping the first row
@@ -444,15 +518,16 @@ const handleClick = async () => {
       <div className="h-screen w-full bg-white p-5">
         {/* Top Bar */}
         <div className="flex items-center mb-4">
-          <button
+          <div
             onClick={() => setSelectedCampaign(null)}
-            className="flex items-center space-x-2 bg-white"
+            className="flex items-center space-x-2 bg-white px-2 py-1 rounded cursor-pointer"
           >
             <span className="bg-gray-300 rounded-full p-2 flex items-center justify-center">
               <FaChevronLeft className="text-black" />
             </span>
             {/* <span className="text-blue-600">Back</span> */}
-          </button>
+          </div>
+
           <h1 className="text-lg font-semibold text-black">{selectedCampaign.name}</h1>
 
         </div>
@@ -478,17 +553,18 @@ const handleClick = async () => {
           </div>
 
           <div className="flex items-center space-x-1">
-            <button
-              onClick={handleClick}
-              className="text-black bg-white border-2 border-gray-500 px-4 py-2 flex items-center space-x-2 h-10"
-            >
-              {isCampaignPaused ? (
-                <FaPlay className="text-xl text-green-500" />
-              ) : (
-                <FaPause className="text-xl text-green-500" />
-              )}
-              <span>{isCampaignPaused ? "Resume Campaign" : "Pause Campaign"}</span>
-            </button>
+          <button
+  onClick={handleClick}
+  className="text-black bg-white border-2 border-gray-500 px-4 py-2 flex items-center space-x-2 h-10"
+>
+  {isCampaignPaused ? (
+    <FaPlay className="text-xl text-green-500" />
+  ) : (
+    <FaPause className="text-xl text-green-500" />
+  )}
+  <span>{isCampaignPaused ? "Resume Campaign" : "Pause Campaign"}</span>
+</button>
+
             <button
               onClick={() => setSelectedCampaign(null)}
               className="text-black bg-white border-2 border-gray-500 px-4 py-2 flex items-center justify-center h-10"
@@ -601,11 +677,20 @@ const handleClick = async () => {
             {/* Left side: Steps */}
             <div className="w-1/4 mr-4 flex flex-col">
               {steps.map((step, index) => (
-                <div key={index} className="border border-blue-800 rounded mb-2 bg-gray-50">
+                <div
+                  key={index}
+                  onClick={() => setSelectedStep(index)}
+                  className={`rounded mb-2 bg-gray-50 border ${selectedStep === index ? "border-blue-800 border-2" : "border-black"
+                    }`}
+                >
                   {/* Top with Step number and Platform Icon */}
                   <div className="px-4 py-5 flex justify-between items-center">
-                    <span className="font-semibold">Step {index + 1}</span>
-                    {selectedPlatform === "instagram" ? (
+                    <span className="font-semibold">
+                      Step{" "}
+                      {steps.slice(0, index + 1).filter((s) => s.platform === step.platform)
+                        .length}
+                    </span>
+                    {step.platform === "instagram" ? (
                       <FaInstagram className="text-pink-500" size={20} />
                     ) : (
                       <FaEnvelope className="text-blue-500" size={20} />
@@ -617,11 +702,6 @@ const handleClick = async () => {
 
                   {/* Bottom */}
                   <div className="px-4 py-5 flex flex-col items-center space-y-4">
-                    {/* Subject box */}
-                    <div className="w-full border border-gray-300 rounded px-3 py-4">
-                      <span className="text-black">&lt;Empty subject&gt;</span>
-                    </div>
-
                     {/* Add variant */}
                     <div className="flex items-center space-x-1 py-4">
                       <span className="text-blue-600 font-bold">+</span>
@@ -643,9 +723,17 @@ const handleClick = async () => {
             <div className="flex-1 border rounded p-4 bg-white">
               {/* Header row with subject, formatting options, and platform toggle */}
               <div className="flex justify-between items-center mb-2">
-                {/* Left side: Preview and Cog */}
+                {/* Left side: Subject (conditional), Preview, and Cog */}
                 <div className="flex items-center space-x-4">
-                  <span>Subject: Your subject</span>
+                  {selectedPlatform === "email" && (
+                    <textarea
+                      className="border border-gray-300 rounded p-1 text-black bg-white placeholder-gray-400 resize-none w-full mb-2"
+                      rows="1"
+                      placeholder="Your Subject"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                    />
+                  )}
                   <button className="bg-white text-black border border-gray-300 rounded px-2 py-1">
                     Preview
                   </button>
@@ -657,17 +745,32 @@ const handleClick = async () => {
                 {/* Right side: Platform Toggle */}
                 <div className="mb-0 flex items-center">
                   <button
-                    onClick={() => setSelectedPlatform("instagram")}
+                    onClick={() => {
+                      setSelectedPlatform("instagram");
+                      if (selectedStep !== null) {
+                        const updatedSteps = steps.map((step, idx) =>
+                          idx === selectedStep ? { ...step, platform: "instagram" } : step
+                        );
+                        setSteps(updatedSteps);
+                      }
+                    }}
                     className={`px-4 py-2 mr-2 rounded flex items-center ${selectedPlatform === "instagram"
                       ? "bg-blue-500 text-white"
                       : "bg-gray-200 text-black"
                       }`}
                   >
                     <FaInstagram className="mr" />
-
                   </button>
                   <button
-                    onClick={() => setSelectedPlatform("email")}
+                    onClick={() => {
+                      setSelectedPlatform("email");
+                      if (selectedStep !== null) {
+                        const updatedSteps = steps.map((step, idx) =>
+                          idx === selectedStep ? { ...step, platform: "email" } : step
+                        );
+                        setSteps(updatedSteps);
+                      }
+                    }}
                     className={`px-4 py-2 rounded flex items-center ${selectedPlatform === "email"
                       ? "bg-blue-500 text-white"
                       : "bg-gray-200 text-black"
@@ -678,13 +781,21 @@ const handleClick = async () => {
                 </div>
               </div>
 
+              {/* Message Body */}
               <textarea
-                className="w-full border border-gray-300 rounded p-2 mb-2 text-black bg-white placeholder-gray-400"
+                className="w-full border border-gray-300 rounded p-2 mb-2 text-black bg-white placeholder-gray-400 resize-none"
                 rows="8"
                 placeholder="Start typing here..."
+                value={messageBody}
+                onChange={(e) => setMessageBody(e.target.value)}
               />
+
+
               <div className="flex items-center space-x-4">
-                <button className="bg-blue-500 text-white px-4 py-2 rounded">
+                <button
+                  className="bg-blue-500 text-white px-4 py-2 rounded"
+                  onClick={handleSave}
+                >
                   Save
                 </button>
                 <button className="bg-white text-black border border-gray-300 rounded px-2 py-1">
@@ -699,8 +810,14 @@ const handleClick = async () => {
                 <button className="bg-white text-black border border-gray-300 rounded px-2 py-1">
                   <FaRegImage />
                 </button>
+                <button className="bg-white text-black border border-gray-300 rounded px-2 py-1 flex items-center space-x-1">
+                  <FaCode />
+                  <span>Variables</span>
+                </button>
               </div>
             </div>
+
+
           </div>
         )}
 
@@ -971,6 +1088,31 @@ const handleClick = async () => {
               </div>
             </div>
 
+            {/* Card: Max number of first DMs an hour */}
+            <div className="border border-gray-300 rounded p-4 bg-white">
+              <div className="flex justify-between items-center">
+                <div>
+                  <label className="block font-medium mb-1">
+                    Max number of first DMs an hour
+                  </label>
+                  <p className="text-sm text-gray-500">
+                    Select a value between 1 and 10
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <select className="border border-gray-300 rounded px-2 py-1">
+                    <option>Select...</option>
+                    {[...Array(10)].map((_, i) => (
+                      <option key={i} value={i + 1}>
+                        {i + 1}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+
             {/* Card: Open tracking */}
             <div className="border border-gray-300 rounded p-4 bg-white">
               <div className="flex justify-between items-center mb-2">
@@ -1000,6 +1142,8 @@ const handleClick = async () => {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-lg font-semibold text-black">Campaigns</h1>
       </div>
+      <hr className="border-t border-gray-300 mb-5" />
+
 
       {/* Controls */}
       <div className="flex justify-between items-center mb-4">
