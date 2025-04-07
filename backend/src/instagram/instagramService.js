@@ -22,7 +22,6 @@ async function sendInstagramMessage(userId, recipientUsername, messageText) {
     return Array.from(document.querySelectorAll('div[role="button"]'))
       .find(el => el.innerText.includes("Message"));
   });
-
   const messageButton = messageButtonHandle.asElement();
 
   if (messageButton) {
@@ -32,29 +31,49 @@ async function sendInstagramMessage(userId, recipientUsername, messageText) {
   } else {
     console.log("⚠️ Message button not found. Trying Options > Send Message...");
 
-    await page.evaluate(() => {
-      document
+    // Click the ellipsis (Options)
+    const optionsClicked = await page.evaluate(() => {
+      const optionsButton = document
         .querySelector('div[role="button"] svg[aria-label="Options"]')
-        ?.closest('div[role="button"]')
-        ?.click();
+        ?.closest('div[role="button"]');
+      if (optionsButton) {
+        optionsButton.click();
+        return true;
+      }
+      return false;
     });
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    if (!optionsClicked) {
+      console.log("⚠️ Options button not found. Skipping lead...");
+      navigatedToDM = false;
+    } else {
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-    await page.evaluate(() => {
-      Array.from(document.querySelectorAll('button[tabindex="0"]'))
-        .find(btn => btn.textContent.trim() === "Send message")
-        ?.click();
-    });
+      // Click the "Send message" button in the popup
+      const sendMessageClicked = await page.evaluate(() => {
+        const sendMessageButton = Array.from(document.querySelectorAll('button[tabindex="0"]'))
+          .find(btn => btn.textContent.trim() === "Send message");
+        if (sendMessageButton) {
+          sendMessageButton.click();
+          return true;
+        }
+        return false;
+      });
 
-    navigatedToDM = true;
+      if (!sendMessageClicked) {
+        console.log("⚠️ 'Send message' button not found in options. Skipping lead...");
+        navigatedToDM = false;
+      } else {
+        navigatedToDM = true;
+      }
+    }
   }
 
   if (navigatedToDM) {
-    // Wait for message input
+    // Wait for the message input to appear.
     await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { visible: true });
 
-    // Click "Not Now" if needed
+    // Click "Not Now" if that prompt appears.
     await page.evaluate(() => {
       const notNowButton = [...document.querySelectorAll('button')]
         .find(btn => btn.textContent.trim() === 'Not Now');
@@ -63,29 +82,28 @@ async function sendInstagramMessage(userId, recipientUsername, messageText) {
 
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Simulate typing
+    // Type out the message.
     const messageBox = await page.$('div[role="textbox"][contenteditable="true"]');
-
     console.log(`✉️ Typing message: ${messageText}`);
-for (let char of messageText) {
-  // 10% chance to simulate a mistake
-  if (Math.random() < 0.1) {
-    const wrongChar = String.fromCharCode(97 + Math.floor(Math.random() * 26));
-    await messageBox.type(wrongChar, { delay: getRandomDelay() });
-    await messageBox.press('Backspace');
-  }
-  await messageBox.type(char, { delay: getRandomDelay() });
-}
-await messageBox.press("Enter");
+    for (let char of messageText) {
+      // 10% chance to simulate a typing mistake.
+      if (Math.random() < 0.1) {
+        const wrongChar = String.fromCharCode(97 + Math.floor(Math.random() * 26));
+        await messageBox.type(wrongChar, { delay: getRandomDelay() });
+        await messageBox.press('Backspace');
+      }
+      await messageBox.type(char, { delay: getRandomDelay() });
+    }
+    await messageBox.press("Enter");
 
-console.log("✅ Message sent successfully!");
-// Pause for 20 seconds after the message is sent
-await new Promise(resolve => setTimeout(resolve, 20000));
-
+    console.log("✅ Message sent successfully!");
+    // Pause for 20 seconds after sending the message.
+    await new Promise(resolve => setTimeout(resolve, 20000));
   }
 
   await browser.close();
 }
+
 
 
 

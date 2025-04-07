@@ -151,84 +151,84 @@ function SocialMedia() {
 
       {/* Table */}
       <div className="overflow-x-auto w-full">
-  <table className="w-full bg-white">
-    <thead className="bg-white">
-      <tr>
-        
-        <th className="px-4 py-4 text-left text-black">
-        <FaInstagram className=" text-white inline-block mr-1 " />
-        Account</th>
-        <th className="px-4 py-4 text-left text-black">Platform</th>
-        <th className="px-4 py-4 text-left text-black">Identifier</th>
-        <th className="px-4 py-4 text-left text-black">Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {allAccounts.map((account) => {
-        // Decide if it's email vs. Instagram vs. unknown
-        const isEmail = account.platform === "email";
-        // If platform is literally "instagram" OR platform is missing but there's a username, treat it as Instagram
-        const isInstagram =
-          account.platform === "instagram" || (!account.platform && account.username);
+        <table className="w-full bg-white">
+          <thead className="bg-white">
+            <tr>
 
-        return (
-          <tr key={account.id}>
-            {/* 1: Account (Icon + label) */}
-            <td className="px-4 py-4">
-              {isInstagram ? (
-                <>
-                  <FaInstagram className=" text-pink-500 inline-block mr-1 " />
-                  <span className="text-black">{account.username}</span>
-                </>
-              ) : isEmail ? (
-                <>
-                  <FaEnvelope className="text-black inline-block mr-1" />
-                  <span className="text-black">{account.account_identifier}</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-black mr-1">?</span>
-                  <span className="text-black">{account.account_identifier}</span>
-                </>
-              )}
-            </td>
+              <th className="px-4 py-4 text-left text-black">
+                <FaInstagram className=" text-white inline-block mr-1 " />
+                Account</th>
+              <th className="px-4 py-4 text-left text-black">Platform</th>
+              <th className="px-4 py-4 text-left text-black">Identifier</th>
+              <th className="px-4 py-4 text-left text-black">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allAccounts.map((account) => {
+              // Decide if it's email vs. Instagram vs. unknown
+              const isEmail = account.platform === "email";
+              // If platform is literally "instagram" OR platform is missing but there's a username, treat it as Instagram
+              const isInstagram =
+                account.platform === "instagram" || (!account.platform && account.username);
 
-            {/* 2: Platform */}
-            <td className="px-4 py-4 text-black">
-              {isInstagram ? "Instagram" : isEmail ? "Email" : "Unknown"}
-            </td>
+              return (
+                <tr key={account.id}>
+                  {/* 1: Account (Icon + label) */}
+                  <td className="px-4 py-4">
+                    {isInstagram ? (
+                      <>
+                        <FaInstagram className=" text-pink-500 inline-block mr-1 " />
+                        <span className="text-black">{account.username}</span>
+                      </>
+                    ) : isEmail ? (
+                      <>
+                        <FaEnvelope className="text-black inline-block mr-1" />
+                        <span className="text-black">{account.account_identifier}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-black mr-1">?</span>
+                        <span className="text-black">{account.account_identifier}</span>
+                      </>
+                    )}
+                  </td>
 
-            {/* 3: Identifier */}
-            <td className="px-4 py-4 text-black">
-              {isInstagram ? account.username : account.account_identifier}
-            </td>
+                  {/* 2: Platform */}
+                  <td className="px-4 py-4 text-black">
+                    {isInstagram ? "Instagram" : isEmail ? "Email" : "Unknown"}
+                  </td>
 
-            {/* 4: Actions */}
-            <td className="px-4 py-4">
-              <div className="flex space-x-4">
-              <button
-  className="cursor-pointer text-black hover:text-blue-500 bg-white p-1 rounded"
-  title="Edit"
->
-  <FaEdit className="h-4 w-4" />
-</button>
-<button
-  className="cursor-pointer text-black hover:text-red-500 bg-white p-1 rounded"
-  title="Delete"
->
-  <FaTrash className="h-4 w-4" />
-</button>
+                  {/* 3: Identifier */}
+                  <td className="px-4 py-4 text-black">
+                    {isInstagram ? account.username : account.account_identifier}
+                  </td>
 
-              </div>
-            </td>
-          </tr>
-        );
-      })}
-    </tbody>
-  </table>
-</div>
+                  {/* 4: Actions */}
+                  <td className="px-4 py-4">
+                    <div className="flex space-x-4">
+                      <button
+                        className="cursor-pointer text-black hover:text-blue-500 bg-white p-1 rounded"
+                        title="Edit"
+                      >
+                        <FaEdit className="h-4 w-4" />
+                      </button>
+                      <button
+                        className="cursor-pointer text-black hover:text-red-500 bg-white p-1 rounded"
+                        title="Delete"
+                      >
+                        <FaTrash className="h-4 w-4" />
+                      </button>
 
-<style jsx>{`
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <style jsx>{`
   .custom-checkbox {
     appearance: none;
     width: 1rem;
@@ -265,7 +265,7 @@ function SocialMedia() {
             <button className="absolute top-2 right-2 text-gray-600" onClick={closeModal}>X</button>
             {modalStep === 'choose' && (
               <>
-                <h2 className="text-lg font-semibold mb-4">Add Account</h2>
+                <h2 className="text-lg font-semibold mb-4 text-black">Add Account</h2>
                 <div className="flex flex-col space-y-4">
                   <button
                     onClick={() => setModalStep('instagram')}
@@ -284,7 +284,7 @@ function SocialMedia() {
             )}
             {modalStep === 'instagram' && (
               <>
-                <h2 className="text-lg font-semibold mb-4">Add Instagram Account</h2>
+                <h2 className="text-lg font-semibold mb-4 text-black">Add Instagram Account</h2>
                 <p className="text-sm text-gray-600 mb-4">
                   Paste your Instagram cookie JSON below.
                 </p>

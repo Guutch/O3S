@@ -4,6 +4,9 @@ const router = express.Router();
 const Campaign = require('../models/Campaign');
 const User = require('../models/User');
 const { processCampaignForCampaignId } = require('../services/campaignProcessor');
+const CampaignSequence = require('../models/CampaignSequence'); // New import
+const CampaignSchedule = require('../models/CampaignSchedule'); // New import
+const { readSheetData, readSheetDataById } = require('../services/sheetsService'); // Reads sheet data
 
 // Middleware to verify JWT
 const authenticate = async (req, res, next) => {
@@ -22,6 +25,23 @@ const authenticate = async (req, res, next) => {
     }
 };
 
+// Route to check connection to a Google Sheet by spreadsheet ID
+router.get('/check-sheet/:spreadsheetId', async (req, res) => {
+  try {
+    const { spreadsheetId } = req.params;
+    const sheetData = await readSheetDataById(spreadsheetId);
+    if (sheetData && sheetData.length > 0) {
+      return res.json({ success: true, data: sheetData });
+    } else {
+      return res.json({ success: false });
+    }
+  } catch (error) {
+    console.error("Error checking sheet data:", error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
 // @route   GET /api/campaigns
 // @desc    Get all campaigns for the authenticated user
 router.get('/', authenticate, async (req, res) => {
@@ -39,7 +59,83 @@ router.get('/', authenticate, async (req, res) => {
       res.status(500).json({ error: 'Failed to fetch campaigns' });
     }
   });
-  
+
+  // @route   GET /api/campaigns/sequences
+// @desc    Get all campaign sequences (ignoring campaignId filter)
+router.get('/sequences', authenticate, async (req, res) => {
+  try {
+    const sequences = await CampaignSequence.findAll();
+    res.json(sequences);
+  } catch (error) {
+    console.error("Error fetching campaign sequences:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.get('/schedules', authenticate, async (req, res) => {
+  try {
+    const schedules = await CampaignSchedule.findAll();
+    res.json(schedules);
+  } catch (error) {
+    console.error("Error fetching campaign schedules:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET spreadsheet ID for a campaign
+router.get('/:id/spreadsheet', authenticate, async (req, res) => {
+  try {
+    const campaign = await Campaign.findOne({
+      where: { id: req.params.id, user_id: req.user.id },
+    });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    res.json({ spreadsheetId: campaign.spreadsheet_id });
+  } catch (error) {
+    console.error("Error fetching spreadsheet ID:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+// Add spreadsheet ID to a campaign (only if not already set)
+router.post('/:id/spreadsheet', authenticate, async (req, res) => {
+  const { spreadsheetId } = req.body;
+  try {
+    const campaign = await Campaign.findOne({ 
+      where: { id: req.params.id, user_id: req.user.id } 
+    });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    
+    if (campaign.spreadsheet_id) {
+      return res.status(400).json({ error: 'Spreadsheet ID already exists. Use update instead.' });
+    }
+    
+    campaign.spreadsheet_id = spreadsheetId;
+    await campaign.save();
+    res.json({ message: 'Spreadsheet ID added successfully', campaign });
+  } catch (err) {
+    console.error("Error adding spreadsheet ID:", err);
+    res.status(500).json({ error: 'Failed to add spreadsheet ID' });
+  }
+});
+
+// Update spreadsheet ID for a campaign
+router.put('/:id/spreadsheet', authenticate, async (req, res) => {
+  const { spreadsheetId } = req.body;
+  try {
+    const campaign = await Campaign.findOne({ 
+      where: { id: req.params.id, user_id: req.user.id } 
+    });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    
+    campaign.spreadsheet_id = spreadsheetId;
+    await campaign.save();
+    res.json({ message: 'Spreadsheet ID updated successfully', campaign });
+  } catch (err) {
+    console.error("Error updating spreadsheet ID:", err);
+    res.status(500).json({ error: 'Failed to update spreadsheet ID' });
+  }
+});
 
 // @route   POST /api/campaigns
 // @desc    Create a new campaign
@@ -125,16 +221,14 @@ router.get('/:campaignId', async (req, res) => {
     }
   });
 
-// POST /api/campaigns/:id/resume
+// POST /api/campaigns/:id/resume endpoint updated to pass spreadsheetId
 router.post('/:id/resume', authenticate, async (req, res) => {
   try {
     const campaign = await Campaign.findOne({ where: { id: req.params.id, user_id: req.user.id } });
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
     
-    // Extract userId from the request body (or you can use req.user.id directly)
-    const { userId } = req.body;
-    // Process this campaign using our defined function, passing the userId
-    const result = await processCampaignForCampaignId(campaign.id, userId);
+    const { userId, formattedLeads } = req.body;
+    const result = await processCampaignForCampaignId(campaign.id, userId, formattedLeads);
     
     res.json(result);
   } catch (err) {
@@ -142,6 +236,7 @@ router.post('/:id/resume', authenticate, async (req, res) => {
     res.status(500).json({ error: 'Failed to resume campaign processing' });
   }
 });
+
 
 
 

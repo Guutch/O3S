@@ -1,10 +1,18 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { FiSearch } from "react-icons/fi";
 import { HiLightningBolt } from "react-icons/hi";
 import { IoMdArrowDropdown } from "react-icons/io";
-import { FaPlus, FaBold, FaItalic, FaPause, FaChevronLeft, FaEllipsisH, FaLink, FaRegImage, FaInstagram, FaEnvelope, FaPlay, FaCode } from "react-icons/fa";
+import { FaPlus, FaBold, FaItalic, FaPause, FaChevronLeft, FaEllipsisH, FaLink, FaRegImage, FaInstagram, FaEnvelope, FaPlay, FaCode, FaTrash } from "react-icons/fa";
+import { timezones } from '../assets/timezones';
+import { getCampaignSequences, getCampaignSchedules } from "../components/campaignAPI";
+// import { readSheetDataById } from '/@fs/home/simon/Documents/Instantly/backend/src/services/IDTest.js';
 
 function Campaigns() {
+  const [showCard, setShowCard] = useState(false);
+  const [showGCard, setShowGCard] = useState(false);
+  const [spreadsheetId, setSpreadsheetId] = useState("");
+  const [originalSpreadsheetId, setOriginalSpreadsheetId] = useState("");
+  const [tempSpreadsheetId, setTempSpreadsheetId] = useState(""); // editable value from the popup
   const [campaigns, setCampaigns] = useState([]);
   const [showPopup, setShowPopup] = useState(false);
   const [campaignName, setCampaignName] = useState("");
@@ -24,6 +32,7 @@ function Campaigns() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [savedSchedules, setSavedSchedules] = useState([]);
+  const [savedSequences, setSavedSequences] = useState([]);
   const [editableSchedule, setEditableSchedule] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [cardSelected, setCardSelected] = useState(false);
@@ -31,12 +40,17 @@ function Campaigns() {
   const [currentContent, setCurrentContent] = useState("");
   const [sequences, setSequences] = useState([]);
   const [selectedPlatform, setSelectedPlatform] = useState("instagram");
-  const [steps, setSteps] = useState([1]);
+  const [steps, setSteps] = useState([]);
+
+  const [emailSteps, setEmailSteps] = useState([]);
+  const [instagramSteps, setInstagramSteps] = useState([]);
+
   const [isCampaignPaused, setIsCampaignPaused] = useState(false);
   const [fromTime, setFromTime] = useState("09:00");
   const [toTime, setToTime] = useState("18:00");
   const [timezone, setTimezone] = useState("Pacific/Midway");
   const userId = localStorage.getItem("userId");
+  const token = localStorage.getItem("token");
   const [messageLogs, setMessageLogs] = useState([]);
   const [totalSent, setTotalSent] = useState(0);
   const [subject, setSubject] = useState("");
@@ -53,17 +67,110 @@ function Campaigns() {
     Sunday: false,
   });
 
+  useEffect(() => {
+    const stepsForPlatform = selectedPlatform === "email" ? emailSteps : instagramSteps;
+    if (selectedStepIndex !== null && stepsForPlatform[selectedStepIndex]) {
+      const selectedSequence = stepsForPlatform[selectedStepIndex];
+      setMessageBody(selectedSequence.message_body || "");
+      setSubject(selectedPlatform === "email" ? selectedSequence.subject || "" : "");
+    } else {
+      setMessageBody("");
+      setSubject("");
+    }
+  }, [selectedStepIndex, emailSteps, instagramSteps, selectedPlatform]);
+
   const addStep = () => {
     const newStep = {
       id: null,
-      platform: "email",
+      platform: selectedPlatform,
       subject: "",
       messageBody: "",
       delay: 0,
     };
-    setSteps([...steps, newStep + 1]);
-    setSelectedStepIndex(steps.length); // auto-select the newly added step
+
+    if (selectedPlatform === "email") {
+      setEmailSteps([...emailSteps, newStep]);
+      setSelectedStepIndex(emailSteps.length);
+    } else {
+      setInstagramSteps([...instagramSteps, newStep]);
+      setSelectedStepIndex(instagramSteps.length);
+    }
   };
+
+  const addStepTwo = (stepData) => {
+    console.log("THIS IS STEP 2", stepData);
+    const newStep = stepData || {
+      id: null,
+      platform: selectedPlatform, // defaults to currently selected platform
+      subject: "",
+      messageBody: "",
+      delay: 0,
+    };
+
+    if (selectedPlatform === "email") {
+      setEmailSteps([...emailSteps, newStep]);
+      setSelectedStepIndex(emailSteps.length); // new step gets index of current length
+    } else if (selectedPlatform === "instagram") {
+      setInstagramSteps([...instagramSteps, newStep]);
+      setSelectedStepIndex(instagramSteps.length);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedStep !== null && steps[selectedStep]) {
+      const selectedSequence = steps[selectedStep];
+      setMessageBody(selectedSequence.message_body || "");
+      if (selectedSequence.platform === "email") {
+        setSubject(selectedSequence.subject || "");
+      } else {
+        setSubject("");
+      }
+    } else {
+      // Clear fields if no step is selected
+      setMessageBody("");
+      setSubject("");
+    }
+  }, [selectedStep, steps]);
+
+
+  useEffect(() => {
+    if (selectedCampaign && selectedCampaign.id) {
+      fetch("http://localhost:5000/api/campaigns/sequences", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+        .then(response => response.json())
+        .then(data => {
+          // Filter sequences that belong to the selected campaign
+          const campaignSequences = data.filter(seq => seq.campaign_id === selectedCampaign.id);
+          console.log("Campaign sequences:", campaignSequences);
+          // Separate the sequences by platform:
+          setEmailSteps(campaignSequences.filter(seq => seq.platform === "email"));
+          setInstagramSteps(campaignSequences.filter(seq => seq.platform === "instagram"));
+        })
+        .catch(error => console.error("Error fetching sequences:", error));
+    }
+  }, [selectedCampaign, token]);
+
+
+
+
+  useEffect(() => {
+    if (selectedCampaign) {
+      getCampaignSequences(token, selectedCampaign.id)
+        .then(data => console.log("Campaign Sequences:", data))
+        .catch(err => console.error(err));
+
+      getCampaignSchedules(token, selectedCampaign.id)
+        .then(data => {
+          console.log("Campaign Schedules:", data);
+          console.log("Number of Schedules:", data.length);
+          setSavedSchedules(data);
+        })
+        .catch(err => console.error(err));
+    }
+  }, [selectedCampaign]);
 
   // Toggle a day checkbox
   const handleDayToggle = (day) => {
@@ -71,17 +178,19 @@ function Campaigns() {
   };
 
   const handleSave = async () => {
+    if (!selectedCampaign || !selectedCampaign.id) return;
 
-    console.log("LOLOLOLOL", selectedCampaign.id)
-    // Assuming you have these values from state or props:
-    // campaignId, stepNumber, platform, subject, messageBody, delay
+    // Calculate the next step number for the current platform.
+    const stepCount = steps.filter((step) => step.platform === selectedPlatform).length;
+    const newStepNumber = stepCount + 1;
+
     const payload = {
-      campaign_id: selectedCampaign.id,         // e.g., selected campaign ID
-      step_number: 1,         // e.g., 1, 2, etc.
-      platform: selectedPlatform,              // "email" or "instagram"
-      subject: subject,                // e.g., "Welcome!" for email sequences
-      message_body: messageBody,       // e.g., "Hello {{first_name}}, welcome to our service!"
-      delay: 0,                    // delay in minutes
+      campaign_id: selectedCampaign.id, // The selected campaign ID
+      step_number: newStepNumber,         // Dynamic step number based on existing steps for the platform
+      platform: selectedPlatform,         // "email" or "instagram"
+      subject: subject,                   // e.g., "Welcome!"
+      message_body: messageBody,          // e.g., "Hello, welcome to our service!"
+      delay: 0,                           // Adjust as needed
     };
 
     console.log("Saving sequence:", payload);
@@ -93,12 +202,20 @@ function Campaigns() {
         body: JSON.stringify(payload),
       });
       const data = await response.json();
-      console.log("Sequence saved:", data);
-      // Optionally update UI state or show a success message
+      addStepTwo(payload);
+      // console.log("THIS IS TEHD DATA ", data)
+      // if (data.success) {
+      //   // On success, add the step using the payload (or response data if available)
+
+      //   addStepTwo(payload);
+      // } else {
+      //   console.error("Failed to save sequence:", data.error || data);
+      // }
     } catch (error) {
       console.error("Error saving sequence:", error);
     }
   };
+
 
 
   // Save schedule to backend
@@ -133,70 +250,73 @@ function Campaigns() {
     }
   };
 
-// In your resume campaign button component
-const handleClick = async () => {
-  const token = localStorage.getItem("token");
-  const userId = localStorage.getItem("userId");
+  // In your resume campaign button component
+  const handleClick = async () => {
 
-  if (isCampaignPaused) {
-    // Campaign is paused: resume it.
-    try {
-      // Update campaign status to active (true)
-      const response = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ is_active: true }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to update campaign status");
+    const userId = localStorage.getItem("userId");
+
+    console.log("THIS IS THE LEADS", leads)
+    console.log("THIS IS THE FORMATTEDLEADS", formattedLeads)
+
+    if (isCampaignPaused) {
+      // Campaign is paused: resume it.
+      try {
+        // Update campaign status to active (true)
+        const response = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ is_active: true }),
+        });
+        if (!response.ok) {
+          throw new Error("Failed to update campaign status");
+        }
+        const updatedCampaign = await response.json();
+        console.log("Campaign updated (resumed):", updatedCampaign);
+        setIsCampaignPaused(false); // Now active
+
+        // Trigger resume endpoint to start sending messages.
+        const resumeResponse = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}/resume`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ userId, formattedLeads }),
+        });
+        const resumeData = await resumeResponse.json();
+        console.log("Campaign resumed:", resumeData);
+        alert("Campaign resumed. Check console for details.");
+      } catch (error) {
+        console.error(error);
+        alert(error.message);
       }
-      const updatedCampaign = await response.json();
-      console.log("Campaign updated (resumed):", updatedCampaign);
-      setIsCampaignPaused(false); // Now active
-      
-      // Trigger resume endpoint to start sending messages.
-      const resumeResponse = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}/resume`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ userId }),
-      });
-      const resumeData = await resumeResponse.json();
-      console.log("Campaign resumed:", resumeData);
-      alert("Campaign resumed. Check console for details.");
-    } catch (error) {
-      console.error(error);
-      alert(error.message);
-    }
-  } else {
-    // Campaign is active: pause it.
-    try {
-      const response = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ is_active: false }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to update campaign status");
+    } else {
+      // Campaign is active: pause it.
+      try {
+        const response = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ is_active: false }),
+        });
+        if (!response.ok) {
+          throw new Error("Failed to update campaign status");
+        }
+        const updatedCampaign = await response.json();
+        console.log("Campaign updated (paused):", updatedCampaign);
+        setIsCampaignPaused(true);
+        alert("Campaign paused.");
+      } catch (error) {
+        console.error(error);
+        alert(error.message);
       }
-      const updatedCampaign = await response.json();
-      console.log("Campaign updated (paused):", updatedCampaign);
-      setIsCampaignPaused(true);
-      alert("Campaign paused.");
-    } catch (error) {
-      console.error(error);
-      alert(error.message);
     }
-  }
-};
+  };
 
 
 
@@ -248,6 +368,78 @@ const handleClick = async () => {
     }
   };
 
+  // useEffect(() => {
+  //   const XX = async () => {
+  //     console.log("THIS IS THE STEPS:");
+  //     steps.forEach((step, index) => {
+  //       console.log(`Step ${index + 1}:`);
+  //       console.log("id:", step.id);
+  //       console.log("platform:", step.platform);
+  //       console.log("subject:", step.subject);
+  //       console.log("messageBody:", step.messageBody);
+  //       console.log("delay:", step.delay);
+  //     });
+  //   };
+  //   XX();
+  // }, [steps]);
+
+  // HANDLES THE CODE THAT SHOWS THE ... CARD OR NOT 
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setShowCard(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // UPDATE SPREADSHEET ID
+  const handleUpdateSpreadsheet = async () => {
+    console.log("Updating spreadsheet ID to:", tempSpreadsheetId);
+    try {
+      // Check connection to the Google Sheet using the new tempSpreadsheetId (via your /check-sheet endpoint or readSheetDataById directly)
+      const checkRes = await fetch(`http://localhost:5000/api/campaigns/check-sheet/${tempSpreadsheetId}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const checkData = await checkRes.json();
+      if (!checkData.success) {
+        console.error("Google sheet connection failed or returned no data");
+        return;
+      }
+      // If connection is good, update the backend:
+      const res = await fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}/spreadsheet`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ spreadsheetId: tempSpreadsheetId })
+      });
+      const data = await res.json();
+      if (data && data.message === "Spreadsheet ID updated successfully") {
+        console.log("Spreadsheet connection updated.");
+        // Update the main spreadsheetId state with the new value
+        setSpreadsheetId(tempSpreadsheetId);
+        setOriginalSpreadsheetId(tempSpreadsheetId);
+        // Refresh leads after a successful update
+        await fetchLeads();
+      } else {
+        console.error("Failed to update spreadsheet ID:", data.error);
+      }
+    } catch (error) {
+      console.error("Error updating spreadsheet ID:", error);
+    } finally {
+      setShowGCard(false);
+    }
+  };
+
+
+
   useEffect(() => {
     const fetchCampaigns = async () => {
       try {
@@ -272,10 +464,15 @@ const handleClick = async () => {
   }, []);
 
   const fetchLeads = async () => {
+    if (!spreadsheetId) {
+      console.error("Spreadsheet ID is missing. Aborting fetchLeads.");
+      return;
+    }
     try {
       const res = await fetch(`http://localhost:5000/api/leads/import-sheets/${selectedCampaign.id}`, {
         method: 'POST', // Trigger the import process
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId })
       });
       const data = await res.json();
       console.log("THIS IS THE DATA", data.campaignLeads);
@@ -288,10 +485,50 @@ const handleClick = async () => {
   };
 
   useEffect(() => {
+    // Get steps only for the currently selected platform
+    const platformSteps = steps.filter((step) => step.platform === selectedPlatform);
+    // Get the selected index for the current platform
+    const currentIndex = selectedStep?.[selectedPlatform];
+    if (currentIndex !== null && currentIndex !== undefined && platformSteps[currentIndex]) {
+      const selectedSequence = platformSteps[currentIndex];
+      setMessageBody(selectedSequence.message_body || "");
+      if (selectedSequence.platform === "email") {
+        setSubject(selectedSequence.subject || "");
+      } else {
+        setSubject("");
+      }
+    } else {
+      setMessageBody("");
+      setSubject("");
+    }
+  }, [selectedStep, steps, selectedPlatform]);
+
+
+  useEffect(() => {
     if (selectedCampaign && selectedCampaign.id) {
       fetchLeads();
     }
-  }, [selectedCampaign]);
+  }, [selectedCampaign, spreadsheetId]);
+
+  useEffect(() => {
+    if (selectedCampaign && selectedCampaign.id) {
+      fetch(`http://localhost:5000/api/campaigns/${selectedCampaign.id}/spreadsheet`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+        .then(response => response.json())
+        .then(data => {
+          console.log("Spreadsheet ID:", data.spreadsheetId);
+          setSpreadsheetId(data.spreadsheetId);
+          setOriginalSpreadsheetId(data.spreadsheetId); // Save the original value
+          setTempSpreadsheetId(data.spreadsheetId); // set the editable value to current value
+        })
+        .catch(error => {
+          console.error("Error fetching spreadsheet ID:", error);
+        });
+    }
+  }, [selectedCampaign, token]);
 
   useEffect(() => {
     // If there's only one step, auto-select it.
@@ -363,37 +600,6 @@ const handleClick = async () => {
     }
   }, [selectedCampaign]);
 
-  // Dummy button to send an email test to the lead.
-  const handleEmailTest = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const payload = {
-        leadId: 1, // Dummy lead id for testing
-        senderEmail: "simonhutch1611@gmail.com",  // Replace with a real sender email from your DB
-        subject: "Test Email Subject",
-        body: "This is a test email body sent from the Email Test button."
-      };
-
-      const response = await fetch("http://localhost:5000/api/leads/email-test", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to send test email");
-      }
-      const data = await response.json();
-      console.log("Email test result:", data);
-      alert("Email sent: " + data.message);
-    } catch (error) {
-      console.error("Error sending email test:", error);
-      alert(error.message);
-    }
-  };
 
   // Step 1: When the test button is pressed, add lead (dummy lead id: 1) to the selected campaign's CampaignLeads.
   const handleTestButton = async () => {
@@ -506,6 +712,7 @@ const handleClick = async () => {
   };
 
 
+
   // Clicking a campaign transitions to the "detail view"
   const handleCampaignClick = (campaign) => {
     setSelectedCampaign(campaign);
@@ -531,6 +738,7 @@ const handleClick = async () => {
           <h1 className="text-lg font-semibold text-black">{selectedCampaign.name}</h1>
 
         </div>
+
         <div className="flex items-center justify-between mb-4 bg-white">
           <div className="relative">
             <div className="flex space-x-6">
@@ -553,24 +761,49 @@ const handleClick = async () => {
           </div>
 
           <div className="flex items-center space-x-1">
-          <button
-  onClick={handleClick}
-  className="text-black bg-white border-2 border-gray-500 px-4 py-2 flex items-center space-x-2 h-10"
->
-  {isCampaignPaused ? (
-    <FaPlay className="text-xl text-green-500" />
-  ) : (
-    <FaPause className="text-xl text-green-500" />
-  )}
-  <span>{isCampaignPaused ? "Resume Campaign" : "Pause Campaign"}</span>
-</button>
-
             <button
-              onClick={() => setSelectedCampaign(null)}
-              className="text-black bg-white border-2 border-gray-500 px-4 py-2 flex items-center justify-center h-10"
+              onClick={handleClick}
+              className="text-black bg-white border-2 border-gray-500 px-4 py-2 flex items-center space-x-2 h-10"
             >
-              <FaEllipsisH className="text-xl" />
+              {isCampaignPaused ? (
+                <FaPlay className="text-xl text-green-500" />
+              ) : (
+                <FaPause className="text-xl text-green-500" />
+              )}
+              <span>{isCampaignPaused ? "Resume Campaign" : "Pause Campaign"}</span>
             </button>
+
+            <div ref={containerRef} className="relative inline-block">
+              <button
+                onClick={() => setShowCard(!showCard)}
+                className="text-black bg-white border-2 border-gray-500 px-4 py-2 flex items-center justify-center h-10"
+              >
+                <FaEllipsisH className="text-xl" />
+              </button>
+              {showCard && (
+                <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-300 rounded shadow p-4 z-10">
+                  <p
+                    onClick={() => {
+                      /* Delete campaign logic here */
+                      setShowCard(false);
+                    }}
+                    className="cursor-pointer text-sm text-black mb-2 p-2 hover:bg-gray-200 transition"
+                  >
+                    Delete Campaign
+                  </p>
+                  <p
+                    onClick={() => {
+                      /* Rename campaign logic here */
+                      setShowCard(false);
+                    }}
+                    className="cursor-pointer text-sm text-black mb-2 p-2 hover:bg-gray-200 transition"
+                  >
+                    Rename Campaign
+                  </p>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
 
@@ -599,12 +832,55 @@ const handleClick = async () => {
                     </span>
                   </div>
                 </div>
-                <button
-                  className="bg-blue-500 text-white px-4 py-2 rounded-md"
-                  onClick={handleAddLeads}
-                >
-                  Add Leads
-                </button>
+                <div>
+                  <button
+                    className="bg-blue-500 text-white px-4 py-2 rounded-md"
+                    onClick={() => setShowGCard(true)}
+                  >
+                    Update Spreadsheet ID
+                  </button>
+                  <button
+                    className="bg-blue-500 text-white px-4 py-2 rounded-md ml-4"
+                    onClick={handleAddLeads}
+                  >
+                    Refresh Leads
+                  </button>
+
+                  {showGCard && (
+                    <div className="fixed inset-0 flex items-center justify-center bg-gray-500 bg-opacity-50 z-50">
+                      <div className="bg-white p-6 rounded-md shadow-md w-full max-w-lg">
+                        <h2 className="text-xl font-bold mb-4">Update Spreadsheet ID</h2>
+                        <textarea
+                          className="border border-gray-300 rounded p-2 w-full mb-4 bg-white text-black resize-none"
+                          value={tempSpreadsheetId}
+                          onChange={(e) => setTempSpreadsheetId(e.target.value)}
+                        />
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            className="bg-blue-500 text-white px-4 py-2 rounded-md"
+                            onClick={() => {
+                              // Revert changes if user closes the popup
+                              setSpreadsheetId(originalSpreadsheetId);
+                              setTempSpreadsheetId(originalSpreadsheetId);
+                              setShowGCard(false);
+                            }}
+                          >
+                            Close
+                          </button>
+                          <button
+                            className="bg-green-500 text-white px-4 py-2 rounded-md"
+                            onClick={handleUpdateSpreadsheet}
+                          >
+                            Update
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+
+
+                </div>
               </div>
 
               <div className="overflow-x-auto w-full">
@@ -667,63 +943,64 @@ const handleClick = async () => {
           </div>
         )}
 
-
-
-
-
-
         {activeTab === "Sequences" && (
           <div className="flex text-black">
             {/* Left side: Steps */}
-            <div className="w-1/4 mr-4 flex flex-col">
-              {steps.map((step, index) => (
-                <div
-                  key={index}
-                  onClick={() => setSelectedStep(index)}
-                  className={`rounded mb-2 bg-gray-50 border ${selectedStep === index ? "border-blue-800 border-2" : "border-black"
-                    }`}
+            <div className="h-[80vh] w-1/4 mr-4 flex flex-col">
+              {/* Scrollable steps container */}
+              <div className="flex-1 overflow-y-auto">
+                {(selectedPlatform === "email" ? emailSteps : instagramSteps)
+                  .map((step, index) => {
+                    // If step.id is null, prefix the index with "new-"
+                    const uniqueId = step.id !== null ? step.id : `new-${index}`;
+                    const key = `step-${selectedPlatform}-${uniqueId}`;
+                    console.log("Computed key:", key, "Step:", step);
+                    return (
+                      <div
+                        key={key}
+                        onClick={() => setSelectedStepIndex(index)}
+                        className={`rounded mb-2 bg-gray-50 border ${selectedStepIndex === index ? "border-blue-800 border-2" : "border-black"
+                          }`}
+                      >
+                        <div className="px-4 py-5 flex justify-between items-center">
+                          <span className="font-semibold">Step {index + 1}</span>
+                          {selectedPlatform === "instagram" ? (
+                            <FaInstagram className="text-pink-500" size={20} />
+                          ) : (
+                            <FaEnvelope className="text-blue-500" size={20} />
+                          )}
+                        </div>
+                        <hr className="border-gray-300" />
+                        <div className="px-4 py-5 flex flex-col items-center space-y-4">
+                          <div className="flex items-center space-x-1 py-4">
+                            <span className="text-blue-600 font-bold">+</span>
+                            <span className="font-bold text-black">Add variant</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+
+              </div>
+
+
+              {/* Fixed bottom container for Add step button */}
+              <div className="pt-2">
+                <button
+                  onClick={addStep}
+                  className="bg-white border border-blue-500 text-blue-500 px-2 py-2 rounded w-full"
                 >
-                  {/* Top with Step number and Platform Icon */}
-                  <div className="px-4 py-5 flex justify-between items-center">
-                    <span className="font-semibold">
-                      Step{" "}
-                      {steps.slice(0, index + 1).filter((s) => s.platform === step.platform)
-                        .length}
-                    </span>
-                    {step.platform === "instagram" ? (
-                      <FaInstagram className="text-pink-500" size={20} />
-                    ) : (
-                      <FaEnvelope className="text-blue-500" size={20} />
-                    )}
-                  </div>
-
-                  {/* Horizontal line */}
-                  <hr className="border-gray-300" />
-
-                  {/* Bottom */}
-                  <div className="px-4 py-5 flex flex-col items-center space-y-4">
-                    {/* Add variant */}
-                    <div className="flex items-center space-x-1 py-4">
-                      <span className="text-blue-600 font-bold">+</span>
-                      <span className="font-bold text-black">Add variant</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              <button
-                onClick={addStep}
-                className="bg-white border border-blue-500 text-blue-500 px-2 py-2 rounded w-full"
-              >
-                + Add step
-              </button>
+                  + Add step
+                </button>
+              </div>
             </div>
 
             {/* Right side: Subject + Editor */}
-            <div className="flex-1 border rounded p-4 bg-white">
+            <div className="flex-1 border rounded p-4 bg-white h-[80vh]">
               {/* Header row with subject, formatting options, and platform toggle */}
               <div className="flex justify-between items-center mb-2">
-                {/* Left side: Subject (conditional), Preview, and Cog */}
+                {/* Left side: Subject (shown only for email), Preview, and Cog */}
                 <div className="flex items-center space-x-4">
                   {selectedPlatform === "email" && (
                     <textarea
@@ -747,49 +1024,42 @@ const handleClick = async () => {
                   <button
                     onClick={() => {
                       setSelectedPlatform("instagram");
-                      if (selectedStep !== null) {
-                        const updatedSteps = steps.map((step, idx) =>
-                          idx === selectedStep ? { ...step, platform: "instagram" } : step
-                        );
-                        setSteps(updatedSteps);
-                      }
+                      setSelectedStepIndex(null); // Clear selection
+                      setSubject("");
+                      setMessageBody("");
                     }}
                     className={`px-4 py-2 mr-2 rounded flex items-center ${selectedPlatform === "instagram"
                       ? "bg-blue-500 text-white"
                       : "bg-gray-200 text-black"
                       }`}
                   >
-                    <FaInstagram className="mr" />
+                    <FaInstagram />
                   </button>
                   <button
                     onClick={() => {
                       setSelectedPlatform("email");
-                      if (selectedStep !== null) {
-                        const updatedSteps = steps.map((step, idx) =>
-                          idx === selectedStep ? { ...step, platform: "email" } : step
-                        );
-                        setSteps(updatedSteps);
-                      }
+                      setSelectedStepIndex(null);
+                      setSubject("");
+                      setMessageBody("");
                     }}
                     className={`px-4 py-2 rounded flex items-center ${selectedPlatform === "email"
                       ? "bg-blue-500 text-white"
                       : "bg-gray-200 text-black"
                       }`}
                   >
-                    <FaEnvelope className="mr" />
+                    <FaEnvelope />
                   </button>
                 </div>
               </div>
 
               {/* Message Body */}
               <textarea
-                className="w-full border border-gray-300 rounded p-2 mb-2 text-black bg-white placeholder-gray-400 resize-none"
+                className="w-full border border-gray-300 rounded h-[60vh] p-2 mb-2 text-black bg-white placeholder-gray-400 resize-none"
                 rows="8"
                 placeholder="Start typing here..."
                 value={messageBody}
                 onChange={(e) => setMessageBody(e.target.value)}
               />
-
 
               <div className="flex items-center space-x-4">
                 <button
@@ -818,96 +1088,79 @@ const handleClick = async () => {
             </div>
 
 
+
           </div>
         )}
 
         {activeTab === "Schedule" && (
           <div className="flex text-black">
             {/* Left Panel: Start/End Settings */}
-            <div className="p-4 w-1/4">
-              {/* Start */}
-              <div className="flex items-center mb-4">
-                <div className="w-16">
-                  <h3 className="font-semibold">Start</h3>
+            <div className="h-[80vh] w-1/4 flex flex-col">
+
+              <div className="px-4 pt-4">
+                {/* Start */}
+                <div className="flex items-center mb-4 ">
+                  <div className="w-16">
+                    <h3 className="font-semibold">Start</h3>
+                  </div>
+                  <span className="mx-2">|</span>
+                  {startIsNow ? (
+                    <span
+                      className="text-blue-600 cursor-pointer"
+                      onClick={() => setStartIsNow(false)}
+                    >
+                      Now
+                    </span>
+                  ) : (
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      onBlur={() => {
+                        if (!startDate) setStartIsNow(true);
+                      }}
+                      className="border border-gray-300 rounded p-1 text-blue-600"
+                    />
+                  )}
                 </div>
-                <span className="mx-2">|</span>
-                {startIsNow ? (
-                  <span
-                    className="text-blue-600 cursor-pointer"
-                    onClick={() => setStartIsNow(false)}
-                  >
-                    Now
-                  </span>
-                ) : (
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    onBlur={() => {
-                      if (!startDate) setStartIsNow(true);
-                    }}
-                    className="border border-gray-300 rounded p-1 text-blue-600"
-                  />
-                )}
-              </div>
 
-              {/* End */}
-              <div className="flex items-center mb-4">
-                <div className="w-16">
-                  <h3 className="font-semibold">End</h3>
+                {/* End */}
+                <div className="flex items-center mb-4">
+                  <div className="w-16">
+                    <h3 className="font-semibold">End</h3>
+                  </div>
+                  <span className="mx-2">|</span>
+                  {endIsNoEnd ? (
+                    <span
+                      className="text-blue-600 cursor-pointer"
+                      onClick={() => setEndIsNoEnd(false)}
+                    >
+                      No end date
+                    </span>
+                  ) : (
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      onBlur={() => {
+                        if (!endDate) setEndIsNoEnd(true);
+                      }}
+                      className="border border-gray-300 rounded p-1 text-blue-600"
+                    />
+                  )}
                 </div>
-                <span className="mx-2">|</span>
-                {endIsNoEnd ? (
-                  <span
-                    className="text-blue-600 cursor-pointer"
-                    onClick={() => setEndIsNoEnd(false)}
-                  >
-                    No end date
-                  </span>
-                ) : (
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    onBlur={() => {
-                      if (!endDate) setEndIsNoEnd(true);
-                    }}
-                    className="border border-gray-300 rounded p-1 text-blue-600"
-                  />
-                )}
+
+                {/* Horizontal line */}
+                <hr className="border-t border-gray-300 mx-4 mb-4" />
               </div>
 
-              {/* Horizontal line with side margins */}
-              <hr className="border-t border-gray-300 mx-4 mb-4" />
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto p-4">
 
-              {/* Display Schedule Card (non-editable) using the scheduleName state */}
-              <div className="border border-gray-300 rounded p-2 flex items-center mb-4 bg-white">
-                {/* Calendar icon */}
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 text-gray-600 mr-2"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7V3m8 4V3M3 11h18M3 19h18M5 15h.01M8 15h.01M11 15h.01M14 15h.01M17 15h.01"
-                  />
-                </svg>
-                <span className="flex-1 text-gray-700">
-                  {scheduleName.trim() !== "" ? scheduleName : "New schedule"}
-                </span>
-              </div>
 
-              {/* Render saved schedule cards (freshest first) */}
-              {savedSchedules.map((schedule, index) => (
-                <div
-                  key={index}
-                  className="border border-gray-300 rounded p-2 flex items-center mb-2 bg-white"
-                >
+                {/* Schedule card */}
+                <div className="border border-gray-300 rounded p-2 flex items-center mb-4 bg-white">
+                  {/* Calendar icon */}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-5 w-5 text-gray-600 mr-2"
@@ -922,18 +1175,55 @@ const handleClick = async () => {
                       d="M8 7V3m8 4V3M3 11h18M3 19h18M5 15h.01M8 15h.01M11 15h.01M14 15h.01M17 15h.01"
                     />
                   </svg>
-                  <span className="flex-1">{schedule}</span>
+                  <span className="flex-1 text-gray-700">
+                    {scheduleName.trim() !== "" ? scheduleName : "New schedule"}
+                  </span>
+                  <div className="hover:text-red-500 cursor-pointer">
+                    {/* <FaTrash /> */}
+                  </div>
                 </div>
-              ))}
 
-              {/* Add schedule button styled like a card */}
-              <button
-                onClick={handleAddSchedule}
-                className="border border-gray-300 rounded p-1 w-full bg-white text-blue-600"
-              >
-                Add schedule
-              </button>
+                {/* Render saved schedule cards */}
+                {savedSchedules.map((schedule, index) => (
+                  <div
+                    key={schedule.id || index}
+                    className="border border-gray-300 rounded p-2 flex items-center mb-2 bg-white"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-gray-600 mr-2"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 7V3m8 4V3M3 11h18M3 19h18M5 15h.01M8 15h.01M11 15h.01M14 15h.01M17 15h.01"
+                      />
+                    </svg>
+                    <span className="flex-1">
+                      {schedule.schedule_name.trim() !== "" ? schedule.schedule_name : "New schedule"}
+                    </span>
+                    <div className="hover:text-red-500 cursor-pointer">
+                      <FaTrash />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Fixed bottom button */}
+              <div className="p-4">
+                <button
+                  onClick={handleAddSchedule}
+                  className="border border-gray-300 rounded p-1 w-full bg-white text-blue-600"
+                >
+                  Add schedule
+                </button>
+              </div>
             </div>
+
 
             {/* Right Panel: Schedule Details */}
             <div className="flex-1 border rounded p-4">
@@ -995,12 +1285,11 @@ const handleClick = async () => {
                     onChange={(e) => setTimezone(e.target.value)}
                     className="border border-black bg-white rounded w-full p-2"
                   >
-                    {/* Paste all your timezone options here */}
-                    <option value="Pacific/Midway">(GMT-11:00) Midway Island, Samoa</option>
-                    <option value="America/Adak">(GMT-10:00) Hawaii-Aleutian</option>
-                    <option value="Etc/GMT+10">(GMT-10:00) Hawaii</option>
-                    {/* ... rest of your options ... */}
-                    <option value="Pacific/Tongatapu">(GMT+13:00) Nuku'alofa</option>
+                    {timezones.map((tz) => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1137,7 +1426,7 @@ const handleClick = async () => {
 
   // If no campaign selected, show main campaign list
   return (
-    <div className="h-screen w-full bg-white p-6">
+    <div className="h-screen w-full bg-white p-6 ">
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-lg font-semibold text-black">Campaigns</h1>

@@ -24,35 +24,47 @@ router.post('/send', async (req, res) => {
 
 // Add an Instagram account
 router.post('/add', async (req, res) => {
-    console.log("HERE HERE HERE")
-
-    console.log(req.body)
+    console.log("HERE HERE HERE");
+    console.log(req.body);
+  
     const { user_id, username, cookies } = req.body;
-
-    console.log("HERE HERE HERE")
-
+    console.log("HERE HERE HERE");
+  
     if (!user_id || !username || !cookies) {
-        return res.status(400).json({ error: "Missing required fields." });
+      return res.status(400).json({ error: "Missing required fields." });
     }
-
+  
     try {
-        const newAccount = await InstagramAccount.create({
-            user_id: user_id,
-            username: username,
-            cookies: cookies,
-            is_active: true // Using the default value, but explicitly setting it here
-        });
-
-        res.json({
-            success: true,
-            message: "Instagram account added successfully.",
-            id: newAccount.id
-        });
+      let parsedCookies = cookies;
+      if (typeof cookies === "string") {
+        try {
+          parsedCookies = JSON.parse(cookies);
+        } catch (parseError) {
+          console.error("Error parsing cookies JSON:", parseError);
+          return res.status(400).json({ error: "Invalid cookies format." });
+        }
+      }
+  
+      // Stringify cookies to satisfy the model's string requirement
+      const newAccount = await InstagramAccount.create({
+        user_id,
+        username,
+        cookies: JSON.stringify(parsedCookies),
+        is_active: true
+      });
+  
+      res.json({
+        success: true,
+        message: "Instagram account added successfully.",
+        id: newAccount.id
+      });
     } catch (error) {
-        console.error("Error creating Instagram account:", error);
-        res.status(500).json({ error: error.message });
+      console.error("Error creating Instagram account:", error);
+      res.status(500).json({ error: error.message });
     }
-});
+  });
+  
+  
 
 // POST /api/instagram/send-message
 router.post('/send-message', async (req, res) => {

@@ -2,9 +2,18 @@ const express = require('express');
 const router = express.Router();
 const CampaignSchedule = require('../models/CampaignSchedule');
 
+router.get('/test', (req, res) => {
+  res.json({ message: "Campaign Schedule routes are working!" });
+});
+
 // Get all schedules (optionally filtered by campaignId)
 router.get('/', async (req, res) => {
+  console.log("===============================");
+  console.log("Schedule route handler called!");
+  console.log("Query params:", req.query);
+  console.log("===============================");
   const { campaignId } = req.query;
+  console.log("THIS IS THE CAMPAIGN ID", campaignId)
   try {
     const schedules = campaignId
       ? await CampaignSchedule.findAll({ where: { campaign_id: campaignId } })
