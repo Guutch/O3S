@@ -1,6 +1,8 @@
 // sheetsService.js
 const { google } = require("googleapis");
-const keys = require("./credentials.json"); // Ensure correct path
+// const keys = require("./credentials.json"); // Ensure correct path
+require('dotenv').config();
+const keys = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
 async function readSheetDataById(spreadsheetId) {
   // Create a JWT client using your service account credentials
