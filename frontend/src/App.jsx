@@ -39,6 +39,7 @@ function App() {
     }
   }, [secretKey]);
 
+  // github lol
   const validateKey = async (key) => {
     try {
       const response = await axios.post("http://localhost:5000/api/auth/validate-key", { key });
