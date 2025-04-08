@@ -84,12 +84,12 @@ app._router.stack.forEach((layer) => {
     }
 });
 
-app.use(express.static(path.join(__dirname, '../frontend/build')));
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
-// Fallback to index.html for any other routes
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
-  });
+  res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
+});
+
 
 // Start Server
 const PORT = process.env.PORT || 5000;
